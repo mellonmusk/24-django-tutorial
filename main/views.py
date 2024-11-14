@@ -8,15 +8,17 @@ from rest_framework.mixins import (
 )
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
+from rest_framework import generics, status
+# from rest_framework.status import HTTP_403_FORBIDDEN, HTTP_404_NOT_FOUND
 
-from main.models import Study
+from main.models import Study, StudyParticipation
 from django.contrib.auth import login, authenticate
 from main.serializers import (
     StudySerializer,
     LoginSerializer,
-    UserSerializer,
+    UserSerializer, StudyParticipationSerializer,
 )
-from rest_framework import generics
+
 
 
 class LoginView(GenericAPIView):
@@ -65,11 +67,11 @@ class StudyDetailView(generics.RetrieveUpdateDestroyAPIView):
     serializer_class = StudySerializer
 
     def get_queryset(self):
+        # 단건조회
         if self.request.method == "GET":
             return super().get_queryset()
-
+        # 수정/삭제
         return super().get_queryset().filter(created_by=self.request.user)
-
 
 class StudyParticipationListView(
     ListModelMixin,
@@ -82,7 +84,28 @@ class StudyParticipationListView(
     """
 
     ### assignment3: 이곳에 과제를 작성해주세요
-    ### end assignment3
+    permission_classes = [IsAuthenticated]
+
+    queryset = StudyParticipation.objects.all()
+    serializer_class = StudyParticipationSerializer
+
+    def get_queryset(self):
+        return super().get_queryset().filter(user=self.request.user)
+
+    def get(self, request, *args, **kwargs):
+        return self.list(request, *args, **kwargs)
+
+    def post(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        if serializer.validated_data['user'] != request.user:
+            return Response(status=status.HTTP_403_FORBIDDEN)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
+
+### end assignment3
 
 
 class StudyParticipationView(
@@ -94,4 +117,15 @@ class StudyParticipationView(
     """
 
     ### assignment3: 이곳에 과제를 작성해주세요
+
+    permission_classes = [IsAuthenticated]
+
+    queryset = StudyParticipation.objects.all()
+    serializer_class = StudyParticipationSerializer
+
+    def delete(self, request, *args, **kwargs):
+        instance = self.get_object()
+        if instance.user != request.user:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        return self.destroy(request, *args, **kwargs)
     ### end assignment3
